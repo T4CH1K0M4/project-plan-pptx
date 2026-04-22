@@ -1,0 +1,1294 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Project Plan PPTX Generator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "Segoe UI", "Yu Gothic UI", sans-serif;
+         max-width: 960px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
+  h1 { font-size: 1.6rem; }
+  .box { border: 1px solid #ccc; padding: 1rem; border-radius: 8px; margin: 1rem 0; background: #f8fafc; }
+  @media (prefers-color-scheme: dark) { .box { background: #1e293b; border-color: #334155; } }
+  button { font: inherit; padding: 0.5rem 1rem; cursor: pointer;
+           background: #1f3a5f; color: white; border: 0; border-radius: 6px; }
+  button:hover { background: #2e86c1; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 1rem;
+        border-radius: 6px; overflow: auto; max-height: 60vh;
+        font-size: 12px; line-height: 1.45; }
+  code { font-family: "Cascadia Code", Consolas, "Courier New", monospace; }
+  .steps { counter-reset: step; }
+  .steps li { margin: 0.6rem 0; }
+</style>
+</head>
+<body>
+<h1>📄 システム開発 プロジェクト計画書 — PPTX 生成スクリプト</h1>
+
+<div class="box">
+  <strong>このページについて</strong>:
+  Python スクリプトを実行すると、35 ページ構成のプロジェクト計画書 (.pptx) が生成されます。<br>
+  下の「コードをコピー」を押して、新規 <code>gen_project_plan.py</code> に貼り付けてください。
+</div>
+
+<h2>使い方</h2>
+<ol class="steps">
+  <li><code>pip install python-pptx</code> (初回のみ)</li>
+  <li>下のコードをコピーして <code>gen_project_plan.py</code> として保存</li>
+  <li><code>python gen_project_plan.py</code> で実行 → 同じフォルダに <code>project_plan.pptx</code> が出る</li>
+</ol>
+
+<p>
+  <button id="copyBtn">📋 コードをコピー</button>
+  <span id="copyStatus" style="margin-left:1rem;"></span>
+</p>
+
+<pre><code id="code">&quot;&quot;&quot;
+================================================================================
+  システム開発 プロジェクト計画書 (PowerPoint) ジェネレーター
+  System Development Project Plan — PPTX Generator
+================================================================================
+
+  このスクリプトは 35 ページ構成のプロジェクト計画書 (.pptx) を一発生成します。
+  章立て:
+    1. プロジェクト定義     (目的 / スコープ / スケジュール / リスク / CP)
+    2. プロジェクト体制     (体制図 / RACI / 承認プロセス)
+    3. プロジェクト管理計画 (フェーズ / 会議体 / 進捗 / 変更 / 情報)
+    4. 品質管理計画         (方針 / 体制 / プロセス / NFR)
+    5. 移行計画             (リリース / 判定 / 保守 / 運用)
+    6. AI活用計画 (Kiro)    (方針 / Specs・Hooks・Steering・MCP / ガバナンス)
+
+================================================================================
+  使い方 (3 ステップ)
+================================================================================
+
+  【前提】 Python 3.8 以降がインストールされていること。
+          コマンドプロンプト / PowerShell / ターミナルで以下を実行。
+
+  1) 依存ライブラリのインストール (初回のみ)
+        pip install python-pptx
+
+     ※ Windows で複数 Python がある場合は:
+          py -m pip install python-pptx
+
+  2) このファイルを任意の場所に保存
+        例: C:\\Users\\&lt;USER&gt;\\Documents\\gen_project_plan.py
+
+  3) 実行
+        python gen_project_plan.py
+     または:
+        py gen_project_plan.py
+
+  =&gt; 同じフォルダに `project_plan.pptx` が生成されます。
+     PowerPoint でそのまま開けます (Microsoft 365 / 2019 以降で確認)。
+
+================================================================================
+  Copilot への指示例 (コピペして使える)
+================================================================================
+
+  ・「このスクリプトを実行してプロジェクト計画書を生成して」
+  ・「PROJECT_NAME を『○○システム刷新計画』に変えて実行して」
+  ・「OUTPUT_FILE を絶対パスに変えて、デスクトップに出力して」
+  ・「会社名 (CONFIG の ORG_NAME) を『株式会社XX』に変えて」
+
+  Copilot が「python-pptx が無い」と言ったら pip install python-pptx を指示する。
+
+================================================================================
+  カスタマイズ設定 (CONFIG) — ここだけ変更すれば OK
+================================================================================
+&quot;&quot;&quot;
+
+# --- 必須ライブラリのインポート -----------------------------------------
+# python-pptx が入っていない場合、わかりやすいエラーメッセージを出す。
+try:
+    from pptx import Presentation
+    from pptx.util import Inches, Pt, Emu
+    from pptx.dml.color import RGBColor
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+    from pptx.oxml.ns import qn
+except ImportError:
+    import sys
+    sys.stderr.write(
+        &quot;\n[ERROR] python-pptx がインストールされていません。\n&quot;
+        &quot;       以下のコマンドでインストールしてください:\n\n&quot;
+        &quot;           pip install python-pptx\n&quot;
+        &quot;       (Windows で複数 Python がある場合: py -m pip install python-pptx)\n\n&quot;
+    )
+    sys.exit(1)
+
+import os
+from pathlib import Path
+
+
+# ============================================================================
+#   CONFIG — プロジェクトに合わせてここを編集
+# ============================================================================
+# 表紙・フッタ等で表示されるプロジェクト情報。
+PROJECT_NAME    = &quot;プロジェクト計画書&quot;
+PROJECT_NAME_EN = &quot;System Development Project Plan&quot;
+VERSION         = &quot;1.0&quot;
+PROJECT_DATE    = &quot;2026-04-22&quot;              # YYYY-MM-DD
+ORG_NAME        = &quot;Project Management Office&quot;
+CONFIDENTIALITY = &quot;Confidential / Project Plan v1.0&quot;
+
+# 出力ファイル名。絶対パスでも相対パスでも可。
+# 相対パスの場合、このスクリプトと同じフォルダに出力されます。
+OUTPUT_FILE     = &quot;project_plan.pptx&quot;
+
+# 日本語フォント。Windows なら &quot;Meiryo&quot; or &quot;Yu Gothic&quot;、Mac なら &quot;Hiragino Sans&quot;。
+# ここで指定したフォントが無ければ PowerPoint 側で自動代替されます。
+JP_FONT         = &quot;Meiryo&quot;
+
+# ============================================================================
+
+
+# --- デザイントークン (色・サイズ) — 通常は変更不要 ----------------------
+COLOR_PRIMARY = RGBColor(0x1F, 0x3A, 0x5F)   # 紺 (メインカラー)
+COLOR_ACCENT  = RGBColor(0x2E, 0x86, 0xC1)   # 青 (アクセント)
+COLOR_LIGHT   = RGBColor(0xEA, 0xF2, 0xF8)   # 薄青 (背景)
+COLOR_TEXT    = RGBColor(0x22, 0x2B, 0x34)   # 本文
+COLOR_GRAY    = RGBColor(0x6C, 0x75, 0x7D)   # 補足テキスト
+COLOR_WHITE   = RGBColor(0xFF, 0xFF, 0xFF)
+
+# スライドサイズ (16:9 ワイド)。
+SLIDE_W = Inches(13.333)
+SLIDE_H = Inches(7.5)
+
+# Presentation オブジェクトを初期化。
+prs = Presentation()
+prs.slide_width = SLIDE_W
+prs.slide_height = SLIDE_H
+BLANK = prs.slide_layouts[6]  # 何も配置されていない白紙レイアウト
+
+
+# ---- ユーティリティ ----------------------------------------------------
+def set_font(run, size=14, bold=False, color=COLOR_TEXT, font=JP_FONT):
+    run.font.name = font
+    # East Asia font を明示
+    rPr = run._r.get_or_add_rPr()
+    eaFont = rPr.find(qn(&quot;a:ea&quot;))
+    if eaFont is None:
+        from lxml import etree
+        eaFont = etree.SubElement(rPr, qn(&quot;a:ea&quot;))
+    eaFont.set(&quot;typeface&quot;, font)
+    run.font.size = Pt(size)
+    run.font.bold = bold
+    run.font.color.rgb = color
+
+
+def add_rect(slide, x, y, w, h, fill=COLOR_PRIMARY, line=None):
+    shp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, x, y, w, h)
+    shp.fill.solid()
+    shp.fill.fore_color.rgb = fill
+    if line is None:
+        shp.line.fill.background()
+    else:
+        shp.line.color.rgb = line
+    shp.shadow.inherit = False
+    return shp
+
+
+def add_text(slide, x, y, w, h, text, size=14, bold=False, color=COLOR_TEXT,
+             align=PP_ALIGN.LEFT, anchor=MSO_ANCHOR.TOP):
+    tb = slide.shapes.add_textbox(x, y, w, h)
+    tf = tb.text_frame
+    tf.margin_left = tf.margin_right = Emu(0)
+    tf.margin_top = tf.margin_bottom = Emu(0)
+    tf.word_wrap = True
+    tf.vertical_anchor = anchor
+    p = tf.paragraphs[0]
+    p.alignment = align
+    r = p.add_run()
+    r.text = text
+    set_font(r, size=size, bold=bold, color=color)
+    return tb
+
+
+def add_page_header(slide, section_no, section_title, page_title):
+    # 上部バー
+    add_rect(slide, 0, 0, SLIDE_W, Inches(0.7), fill=COLOR_PRIMARY)
+    add_text(slide, Inches(0.4), Inches(0.12), Inches(8), Inches(0.5),
+             f&quot;{section_no}. {section_title}&quot;, size=14, bold=True,
+             color=COLOR_WHITE, anchor=MSO_ANCHOR.MIDDLE)
+    add_text(slide, Inches(10.5), Inches(0.12), Inches(2.5), Inches(0.5),
+             PROJECT_NAME, size=10, color=COLOR_WHITE,
+             align=PP_ALIGN.RIGHT, anchor=MSO_ANCHOR.MIDDLE)
+    # ページタイトル
+    add_text(slide, Inches(0.5), Inches(0.9), Inches(12), Inches(0.6),
+             page_title, size=24, bold=True, color=COLOR_PRIMARY)
+    # アクセント線
+    add_rect(slide, Inches(0.5), Inches(1.5), Inches(1.2), Emu(38100),
+             fill=COLOR_ACCENT)
+
+
+def add_footer(slide, page_no, total):
+    &quot;&quot;&quot;各ページ下部の機密表示とページ番号。&quot;&quot;&quot;
+    add_text(slide, Inches(0.5), Inches(7.1), Inches(5), Inches(0.3),
+             CONFIDENTIALITY, size=9, color=COLOR_GRAY)
+    add_text(slide, Inches(11.5), Inches(7.1), Inches(1.5), Inches(0.3),
+             f&quot;{page_no} / {total}&quot;, size=9, color=COLOR_GRAY,
+             align=PP_ALIGN.RIGHT)
+
+
+def add_bullets(slide, x, y, w, h, items, size=13, line_spacing=1.35):
+    tb = slide.shapes.add_textbox(x, y, w, h)
+    tf = tb.text_frame
+    tf.word_wrap = True
+    tf.margin_left = Emu(0); tf.margin_right = Emu(0)
+    tf.margin_top = Emu(0); tf.margin_bottom = Emu(0)
+    for i, item in enumerate(items):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.alignment = PP_ALIGN.LEFT
+        p.line_spacing = line_spacing
+        if isinstance(item, tuple):
+            head, body = item
+            r1 = p.add_run(); r1.text = f&quot;■ {head}  &quot;
+            set_font(r1, size=size, bold=True, color=COLOR_PRIMARY)
+            r2 = p.add_run(); r2.text = body
+            set_font(r2, size=size, color=COLOR_TEXT)
+        else:
+            r = p.add_run(); r.text = f&quot;・{item}&quot;
+            set_font(r, size=size, color=COLOR_TEXT)
+    return tb
+
+
+def add_table(slide, x, y, w, h, headers, rows,
+              header_fill=COLOR_PRIMARY, header_color=COLOR_WHITE,
+              zebra=COLOR_LIGHT, font_size=11):
+    cols = len(headers); n_rows = len(rows) + 1
+    tbl_shape = slide.shapes.add_table(n_rows, cols, x, y, w, h)
+    tbl = tbl_shape.table
+    # ヘッダ
+    for j, head in enumerate(headers):
+        cell = tbl.cell(0, j)
+        cell.fill.solid(); cell.fill.fore_color.rgb = header_fill
+        cell.margin_left = cell.margin_right = Inches(0.08)
+        cell.margin_top = cell.margin_bottom = Inches(0.04)
+        tf = cell.text_frame; tf.word_wrap = True
+        tf.paragraphs[0].alignment = PP_ALIGN.CENTER
+        r = tf.paragraphs[0].add_run(); r.text = head
+        set_font(r, size=font_size, bold=True, color=header_color)
+    # データ
+    for i, row in enumerate(rows, start=1):
+        for j, val in enumerate(row):
+            cell = tbl.cell(i, j)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = zebra if i % 2 == 1 else COLOR_WHITE
+            cell.margin_left = cell.margin_right = Inches(0.08)
+            cell.margin_top = cell.margin_bottom = Inches(0.04)
+            tf = cell.text_frame; tf.word_wrap = True
+            tf.paragraphs[0].alignment = PP_ALIGN.LEFT
+            r = tf.paragraphs[0].add_run(); r.text = str(val)
+            set_font(r, size=font_size, color=COLOR_TEXT)
+    return tbl
+
+
+def add_box(slide, x, y, w, h, title, body_items,
+            title_color=COLOR_PRIMARY, border=COLOR_ACCENT):
+    # 枠
+    frame = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, h)
+    frame.fill.solid(); frame.fill.fore_color.rgb = COLOR_WHITE
+    frame.line.color.rgb = border; frame.line.width = Pt(1.25)
+    frame.shadow.inherit = False
+    # タイトル帯
+    add_rect(slide, x, y, w, Inches(0.4), fill=title_color)
+    add_text(slide, x + Inches(0.15), y + Inches(0.05), w - Inches(0.3),
+             Inches(0.3), title, size=12, bold=True, color=COLOR_WHITE,
+             anchor=MSO_ANCHOR.MIDDLE)
+    # 本文
+    add_bullets(slide, x + Inches(0.2), y + Inches(0.55),
+                w - Inches(0.4), h - Inches(0.6),
+                body_items, size=11, line_spacing=1.25)
+
+
+# ---- ページ定義 --------------------------------------------------------
+# 章と各章のサブページ (section_no, section_title, page_title, builder)
+PAGES = []  # (section_no, section_title, page_title, build_fn)
+
+
+def builder(section_no, section_title, page_title):
+    def deco(fn):
+        PAGES.append((section_no, section_title, page_title, fn))
+        return fn
+    return deco
+
+
+# ---------- 表紙 --------------------------------------------------------
+def build_cover(slide):
+    &quot;&quot;&quot;表紙スライド。CONFIG の値を参照して描画する。&quot;&quot;&quot;
+    add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, fill=COLOR_PRIMARY)
+    add_rect(slide, 0, Inches(5.2), SLIDE_W, Inches(0.08), fill=COLOR_ACCENT)
+    add_text(slide, Inches(0.8), Inches(2.3), Inches(12), Inches(1.2),
+             PROJECT_NAME, size=54, bold=True, color=COLOR_WHITE)
+    add_text(slide, Inches(0.8), Inches(3.4), Inches(12), Inches(0.7),
+             PROJECT_NAME_EN, size=22, color=COLOR_LIGHT)
+    add_text(slide, Inches(0.8), Inches(5.5), Inches(12), Inches(0.4),
+             f&quot;Version {VERSION}   /   {PROJECT_DATE}&quot;,
+             size=14, color=COLOR_LIGHT)
+    add_text(slide, Inches(0.8), Inches(6.0), Inches(12), Inches(0.4),
+             ORG_NAME, size=14, color=COLOR_LIGHT)
+
+
+# ---------- 目次 --------------------------------------------------------
+def build_toc(slide):
+    add_text(slide, Inches(0.6), Inches(0.5), Inches(12), Inches(0.7),
+             &quot;目次 / Table of Contents&quot;, size=28, bold=True, color=COLOR_PRIMARY)
+    add_rect(slide, Inches(0.6), Inches(1.25), Inches(1.5), Emu(38100),
+             fill=COLOR_ACCENT)
+    toc = [
+        (&quot;1&quot;, &quot;プロジェクト定義&quot;,
+         &quot;目的・背景・目標 / スコープ / マスタスケジュール / リスク / コンティンジェンシー&quot;),
+        (&quot;2&quot;, &quot;プロジェクト体制&quot;,
+         &quot;体制図 / 役割定義 / 要件決定者と承認プロセス&quot;),
+        (&quot;3&quot;, &quot;プロジェクト管理計画&quot;,
+         &quot;フェーズ / コミュニケーション / 進捗 / 課題・リスク / 変更 / 情報&quot;),
+        (&quot;4&quot;, &quot;品質管理計画&quot;,
+         &quot;方針 / 体制 / プロセス / システム品質管理詳細&quot;),
+        (&quot;5&quot;, &quot;移行計画&quot;,
+         &quot;リリース定義 / リリース判定 / 保守計画 / 業務運用計画&quot;),
+        (&quot;6&quot;, &quot;AI活用計画 (Kiro)&quot;,
+         &quot;方針 / Kiro 活用 (Spec・Hooks・Steering・MCP) / 開発プロセス統合 / ガバナンス&quot;),
+    ]
+    y = Inches(1.55)
+    for no, title, sub in toc:
+        add_rect(slide, Inches(0.6), y, Inches(0.85), Inches(0.82),
+                 fill=COLOR_PRIMARY)
+        add_text(slide, Inches(0.6), y, Inches(0.85), Inches(0.82),
+                 no, size=24, bold=True, color=COLOR_WHITE,
+                 align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(slide, Inches(1.65), y + Inches(0.03), Inches(11), Inches(0.4),
+                 title, size=17, bold=True, color=COLOR_PRIMARY)
+        add_text(slide, Inches(1.65), y + Inches(0.43), Inches(11), Inches(0.4),
+                 sub, size=10, color=COLOR_GRAY)
+        y += Inches(0.95)
+
+
+# ---------- 章扉ヘルパ --------------------------------------------------
+def section_divider(no, title, subtitle):
+    def _build(slide):
+        add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, fill=COLOR_PRIMARY)
+        add_rect(slide, Inches(0.8), Inches(2.6), Inches(1.8), Inches(0.1),
+                 fill=COLOR_ACCENT)
+        add_text(slide, Inches(0.8), Inches(1.9), Inches(3), Inches(0.8),
+                 f&quot;Section {no}&quot;, size=20, color=COLOR_LIGHT)
+        add_text(slide, Inches(0.8), Inches(2.9), Inches(12), Inches(1.4),
+                 title, size=48, bold=True, color=COLOR_WHITE)
+        add_text(slide, Inches(0.8), Inches(4.3), Inches(12), Inches(0.6),
+                 subtitle, size=16, color=COLOR_LIGHT)
+    return _build
+
+
+# ======================================================================
+# 1. プロジェクト定義
+# ======================================================================
+@builder(&quot;1&quot;, &quot;プロジェクト定義&quot;, &quot;1.1 プロジェクトの目的 / 背景 / 目標&quot;)
+def _(slide):
+    # 3カラム
+    col_w = Inches(4.1); col_h = Inches(5.0); y = Inches(1.9)
+    add_box(slide, Inches(0.5), y, col_w, col_h, &quot;背景&quot;, [
+        &quot;既存基幹システムの老朽化 (稼働14年)、保守切れ機器多数&quot;,
+        &quot;業務プロセスが属人化しており、拡張・改修コストが高騰&quot;,
+        &quot;経営方針としてデータドリブン経営への転換を加速&quot;,
+        &quot;DX推進計画 (2026-2028) の中核施策として位置付け&quot;,
+    ])
+    add_box(slide, Inches(4.7), y, col_w, col_h, &quot;目的&quot;,
+            [
+                &quot;老朽化システムの刷新と運用コストの大幅削減&quot;,
+                &quot;業務標準化による属人性排除と生産性向上&quot;,
+                &quot;データ基盤統合によるリアルタイム経営可視化&quot;,
+                &quot;API 連携前提のアーキテクチャで将来拡張性を確保&quot;,
+            ], title_color=COLOR_ACCENT)
+    add_box(slide, Inches(8.9), y, col_w, col_h, &quot;目標 (KGI/KPI)&quot;, [
+        (&quot;KGI&quot;, &quot;運用コスト 30% 削減 / リードタイム 40% 短縮&quot;),
+        (&quot;KPI-1&quot;, &quot;帳票自動化率 90% 以上&quot;),
+        (&quot;KPI-2&quot;, &quot;月次決算 5 営業日 → 3 営業日&quot;),
+        (&quot;KPI-3&quot;, &quot;本番障害 Sev1 年間 2 件以下&quot;),
+        (&quot;期限&quot;, &quot;2027-03 本稼働、以降 6 ヶ月ハイパーケア&quot;),
+    ])
+
+
+@builder(&quot;1&quot;, &quot;プロジェクト定義&quot;, &quot;1.2 スコープ&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;本プロジェクトの In / Out を明確にし、認識齟齬を防止する。&quot;,
+             size=12, color=COLOR_GRAY)
+    # In / Out テーブル
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(3.0),
+              headers=[&quot;区分&quot;, &quot;領域&quot;, &quot;対象範囲&quot;, &quot;備考&quot;],
+              rows=[
+                  [&quot;IN&quot;, &quot;業務&quot;, &quot;販売 / 購買 / 在庫 / 会計 / 人事給与&quot;,
+                   &quot;BPR 実施対象&quot;],
+                  [&quot;IN&quot;, &quot;システム&quot;, &quot;基幹刷新 / データ基盤 / BI / 連携基盤&quot;,
+                   &quot;クラウド (AWS) 前提&quot;],
+                  [&quot;IN&quot;, &quot;移行&quot;, &quot;マスタ / トランザクション (過去3年)&quot;,
+                   &quot;クレンジング含む&quot;],
+                  [&quot;OUT&quot;, &quot;業務&quot;, &quot;店舗POS / EC フロント&quot;,
+                   &quot;別プロジェクト (2027下期)&quot;],
+                  [&quot;OUT&quot;, &quot;システム&quot;, &quot;メールサーバ / ファイル共有&quot;,
+                   &quot;現行資産を継続利用&quot;],
+                  [&quot;OUT&quot;, &quot;組織&quot;, &quot;海外拠点 (北米・アジア)&quot;,
+                   &quot;Phase 2 にて計画&quot;],
+              ])
+    add_text(slide, Inches(0.5), Inches(5.5), Inches(12), Inches(0.4),
+             &quot;【前提】予算は FY26 上期 確定分、為替変動は別途エスカレーション対象。&quot;,
+             size=11, color=COLOR_GRAY)
+
+
+@builder(&quot;1&quot;, &quot;プロジェクト定義&quot;, &quot;1.3 マスタスケジュール&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;フェーズゲート方式 (Waterfall + 部分 Agile)、主要マイルストーンを下記に示す。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(3.8),
+              headers=[&quot;フェーズ&quot;, &quot;期間&quot;, &quot;主要成果物&quot;, &quot;ゲート / 判定&quot;],
+              rows=[
+                  [&quot;要件定義&quot;, &quot;2026-04 ～ 2026-07&quot;,
+                   &quot;要件定義書 / BPR 方針書&quot;,
+                   &quot;G1: 要件ベースライン承認&quot;],
+                  [&quot;基本設計&quot;, &quot;2026-07 ～ 2026-10&quot;,
+                   &quot;基本設計書 / IF 一覧 / NFR&quot;,
+                   &quot;G2: 設計レビュー完了&quot;],
+                  [&quot;詳細設計/開発&quot;, &quot;2026-10 ～ 2027-02&quot;,
+                   &quot;詳細設計書 / 単体テスト済ソース&quot;,
+                   &quot;G3: 単体完了&quot;],
+                  [&quot;結合/総合テスト&quot;, &quot;2027-01 ～ 2027-03&quot;,
+                   &quot;IT/ST 結果報告書&quot;,
+                   &quot;G4: 品質判定&quot;],
+                  [&quot;受入/移行&quot;, &quot;2027-02 ～ 2027-03&quot;,
+                   &quot;UAT 結果 / 移行リハ結果&quot;,
+                   &quot;G5: リリース判定&quot;],
+                  [&quot;本稼働/保守&quot;, &quot;2027-04 ～&quot;,
+                   &quot;ハイパーケア報告&quot;,
+                   &quot;G6: 定常運用移行&quot;],
+              ], font_size=11)
+    add_text(slide, Inches(0.5), Inches(6.3), Inches(12), Inches(0.4),
+             &quot;※ 各ゲートはステアリングコミッティ (月1) にて承認。NG の場合は是正まで次フェーズ着手禁止。&quot;,
+             size=10, color=COLOR_GRAY)
+
+
+@builder(&quot;1&quot;, &quot;プロジェクト定義&quot;, &quot;1.4 プロジェクトにおけるリスク&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;影響度 × 発生確率でスコアリング。High は SteerCo 報告対象。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;ID&quot;, &quot;リスク&quot;, &quot;影響&quot;, &quot;確率&quot;, &quot;スコア&quot;, &quot;予防策&quot;],
+              rows=[
+                  [&quot;R-01&quot;, &quot;要件肥大化 (スコープクリープ)&quot;,
+                   &quot;高&quot;, &quot;高&quot;, &quot;High&quot;,
+                   &quot;週次スコープレビュー / 変更管理委員会で承認&quot;],
+                  [&quot;R-02&quot;, &quot;キーパーソン離脱&quot;,
+                   &quot;高&quot;, &quot;中&quot;, &quot;High&quot;,
+                   &quot;ナレッジ二重化 / 代替要員の早期アサイン&quot;],
+                  [&quot;R-03&quot;, &quot;既存システム仕様の不透明&quot;,
+                   &quot;高&quot;, &quot;高&quot;, &quot;High&quot;,
+                   &quot;As-Is 調査フェーズを先行 / 有識者インタビュー強化&quot;],
+                  [&quot;R-04&quot;, &quot;性能要件 (NFR) 未達&quot;,
+                   &quot;中&quot;, &quot;中&quot;, &quot;Mid&quot;,
+                   &quot;PoC で早期検証 / 負荷試験の前倒し実施&quot;],
+                  [&quot;R-05&quot;, &quot;データ移行品質の不足&quot;,
+                   &quot;高&quot;, &quot;中&quot;, &quot;High&quot;,
+                   &quot;3 回のリハーサル / クレンジング基準を事前合意&quot;],
+                  [&quot;R-06&quot;, &quot;ベンダー調達遅延&quot;,
+                   &quot;中&quot;, &quot;低&quot;, &quot;Mid&quot;,
+                   &quot;代替 SI と相見積 / 契約条項にペナルティ明記&quot;],
+                  [&quot;R-07&quot;, &quot;ユーザ受入抵抗&quot;,
+                   &quot;中&quot;, &quot;中&quot;, &quot;Mid&quot;,
+                   &quot;チェンジマネジメント / 早期デモ / 教育計画&quot;],
+              ], font_size=10)
+
+
+@builder(&quot;1&quot;, &quot;プロジェクト定義&quot;, &quot;1.5 コンティンジェンシープラン&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;主要リスクが顕在化した場合の発動条件 / 対応 / 復旧基準を定義する。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;事象&quot;, &quot;発動トリガ&quot;, &quot;一次対応&quot;, &quot;代替案 / 回復策&quot;, &quot;意思決定者&quot;],
+              rows=[
+                  [&quot;要件確定遅延&quot;,
+                   &quot;要件承認 2 週間遅延&quot;,
+                   &quot;スコープ凍結 / 追加要件は Phase2 へ&quot;,
+                   &quot;MVP 切り出しで先行稼働&quot;,
+                   &quot;ステアリングコミッティ&quot;],
+                  [&quot;性能未達&quot;,
+                   &quot;ST で SLA -20% 以上&quot;,
+                   &quot;性能改善 Task Force 編成&quot;,
+                   &quot;インフラ増強 / 一部機能のオフライン化&quot;,
+                   &quot;PM + アーキテクト&quot;],
+                  [&quot;移行失敗&quot;,
+                   &quot;リハ 2 回連続 NG&quot;,
+                   &quot;切替判断の延期 (最大 1 ヶ月)&quot;,
+                   &quot;並行稼働期間を延長 / 段階リリース化&quot;,
+                   &quot;ステアリングコミッティ&quot;],
+                  [&quot;本番障害 Sev1&quot;,
+                   &quot;業務停止 30 分以上&quot;,
+                   &quot;切戻し (旧システム再稼働)&quot;,
+                   &quot;BCP 手順に切替 / ホットライン開設&quot;,
+                   &quot;運用責任者 + CIO&quot;],
+                  [&quot;要員離脱&quot;,
+                   &quot;キー2名以上の同時離脱&quot;,
+                   &quot;代替要員の即時アサイン&quot;,
+                   &quot;タスク再配分 / 一部外部委託&quot;,
+                   &quot;PM&quot;],
+              ], font_size=10)
+
+
+# ======================================================================
+# 2. プロジェクト体制
+# ======================================================================
+@builder(&quot;2&quot;, &quot;プロジェクト体制&quot;, &quot;2.1 体制図&quot;)
+def _(slide):
+    top_y = Inches(1.9)
+    # ステアリング
+    w_top = Inches(4.5); x_top = (SLIDE_W - w_top) / 2
+    add_rect(slide, x_top, top_y, w_top, Inches(0.7), fill=COLOR_PRIMARY)
+    add_text(slide, x_top, top_y, w_top, Inches(0.7),
+             &quot;ステアリングコミッティ (CIO / 役員)&quot;, size=14, bold=True,
+             color=COLOR_WHITE, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    # PMO / PM
+    w_mid = Inches(3.5); mid_y = Inches(3.0)
+    x_pm  = (SLIDE_W - w_mid) / 2
+    add_rect(slide, x_pm, mid_y, w_mid, Inches(0.7), fill=COLOR_ACCENT)
+    add_text(slide, x_pm, mid_y, w_mid, Inches(0.7),
+             &quot;プロジェクトマネージャ (PM)&quot;, size=13, bold=True,
+             color=COLOR_WHITE, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    # PMO / 品質
+    add_rect(slide, Inches(0.8), mid_y, Inches(3.0), Inches(0.7), fill=COLOR_GRAY)
+    add_text(slide, Inches(0.8), mid_y, Inches(3.0), Inches(0.7),
+             &quot;PMO (進捗・課題・情報統制)&quot;, size=12, bold=True,
+             color=COLOR_WHITE, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    add_rect(slide, Inches(9.5), mid_y, Inches(3.0), Inches(0.7), fill=COLOR_GRAY)
+    add_text(slide, Inches(9.5), mid_y, Inches(3.0), Inches(0.7),
+             &quot;品質保証 (QA)&quot;, size=12, bold=True,
+             color=COLOR_WHITE, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    # サブチーム (4列)
+    sub_y = Inches(4.4); sub_w = Inches(2.9); gap = Inches(0.2)
+    total_w = sub_w * 4 + gap * 3
+    x0 = (SLIDE_W - total_w) / 2
+    subs = [
+        (&quot;業務チーム&quot;, [&quot;業務要件&quot;, &quot;BPR&quot;, &quot;UAT&quot;]),
+        (&quot;アプリ開発&quot;, [&quot;設計/実装&quot;, &quot;IT/ST&quot;, &quot;レビュー&quot;]),
+        (&quot;基盤/インフラ&quot;, [&quot;クラウド設計&quot;, &quot;セキュリティ&quot;, &quot;性能&quot;]),
+        (&quot;移行/運用&quot;, [&quot;データ移行&quot;, &quot;切替計画&quot;, &quot;運用設計&quot;]),
+    ]
+    for i, (name, items) in enumerate(subs):
+        x = x0 + (sub_w + gap) * i
+        add_rect(slide, x, sub_y, sub_w, Inches(0.5), fill=COLOR_PRIMARY)
+        add_text(slide, x, sub_y, sub_w, Inches(0.5), name, size=12,
+                 bold=True, color=COLOR_WHITE, align=PP_ALIGN.CENTER,
+                 anchor=MSO_ANCHOR.MIDDLE)
+        add_rect(slide, x, sub_y + Inches(0.5), sub_w, Inches(1.6),
+                 fill=COLOR_LIGHT, line=COLOR_ACCENT)
+        add_bullets(slide, x + Inches(0.15), sub_y + Inches(0.6),
+                    sub_w - Inches(0.3), Inches(1.5),
+                    items, size=11, line_spacing=1.25)
+    # 接続線 (簡易：矩形で縦線)
+    line_color = COLOR_GRAY
+    # Steer → PM
+    add_rect(slide, Inches(6.666) - Emu(12700), top_y + Inches(0.7),
+             Emu(25400), mid_y - (top_y + Inches(0.7)), fill=line_color)
+    # PM → 横 (PMO / QA)
+    bar_y = mid_y + Inches(0.35) - Emu(12700)
+    add_rect(slide, Inches(0.8) + Inches(3.0), bar_y,
+             x_pm - (Inches(0.8) + Inches(3.0)), Emu(25400), fill=line_color)
+    add_rect(slide, x_pm + w_mid, bar_y,
+             Inches(9.5) - (x_pm + w_mid), Emu(25400), fill=line_color)
+    # PM → 各サブチーム
+    add_rect(slide, Inches(6.666) - Emu(12700), mid_y + Inches(0.7),
+             Emu(25400), sub_y - (mid_y + Inches(0.7)), fill=line_color)
+    add_rect(slide, x0, sub_y - Emu(12700),
+             total_w, Emu(25400), fill=line_color)
+
+
+@builder(&quot;2&quot;, &quot;プロジェクト体制&quot;, &quot;2.2 役割定義 (RACI)&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;R: 実行責任  /  A: 最終承認責任  /  C: 協議  /  I: 情報共有&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.7),
+              headers=[&quot;活動 / ロール&quot;, &quot;SteerCo&quot;, &quot;PM&quot;, &quot;PMO&quot;, &quot;業務&quot;, &quot;開発&quot;, &quot;基盤&quot;, &quot;QA&quot;],
+              rows=[
+                  [&quot;要件確定&quot;,     &quot;A&quot;, &quot;R&quot;, &quot;C&quot;, &quot;R&quot;, &quot;C&quot;, &quot;C&quot;, &quot;I&quot;],
+                  [&quot;基本設計&quot;,     &quot;I&quot;, &quot;A&quot;, &quot;C&quot;, &quot;C&quot;, &quot;R&quot;, &quot;R&quot;, &quot;C&quot;],
+                  [&quot;開発 / 単体&quot;,  &quot;I&quot;, &quot;A&quot;, &quot;I&quot;, &quot;I&quot;, &quot;R&quot;, &quot;C&quot;, &quot;C&quot;],
+                  [&quot;結合/総合テスト&quot;, &quot;I&quot;, &quot;A&quot;, &quot;C&quot;, &quot;C&quot;, &quot;R&quot;, &quot;C&quot;, &quot;R&quot;],
+                  [&quot;UAT&quot;,          &quot;I&quot;, &quot;A&quot;, &quot;C&quot;, &quot;R&quot;, &quot;C&quot;, &quot;I&quot;, &quot;C&quot;],
+                  [&quot;リリース判定&quot;, &quot;A&quot;, &quot;R&quot;, &quot;C&quot;, &quot;C&quot;, &quot;C&quot;, &quot;C&quot;, &quot;C&quot;],
+                  [&quot;移行 / 切替&quot;,  &quot;A&quot;, &quot;R&quot;, &quot;C&quot;, &quot;C&quot;, &quot;C&quot;, &quot;R&quot;, &quot;C&quot;],
+                  [&quot;ハイパーケア&quot;, &quot;I&quot;, &quot;A&quot;, &quot;C&quot;, &quot;C&quot;, &quot;R&quot;, &quot;R&quot;, &quot;C&quot;],
+              ], font_size=11)
+
+
+@builder(&quot;2&quot;, &quot;プロジェクト体制&quot;, &quot;2.3 要件決定者と承認プロセス&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;要件は業務オーナ → PM → ステアリングの三段階で段階承認する。&quot;,
+             size=12, color=COLOR_GRAY)
+    # 要件決定者テーブル
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(6.0), Inches(4.3),
+              headers=[&quot;領域&quot;, &quot;要件決定者&quot;, &quot;代理&quot;],
+              rows=[
+                  [&quot;販売 / 購買&quot;, &quot;営業本部長&quot;, &quot;営業企画部長&quot;],
+                  [&quot;在庫 / 物流&quot;, &quot;SCM 部長&quot;, &quot;物流課長&quot;],
+                  [&quot;会計 / 経理&quot;, &quot;経理部長&quot;, &quot;主計課長&quot;],
+                  [&quot;人事 / 給与&quot;, &quot;人事部長&quot;, &quot;労務課長&quot;],
+                  [&quot;情報 / 基盤&quot;, &quot;情シス部長&quot;, &quot;インフラ課長&quot;],
+                  [&quot;全社共通&quot;, &quot;CIO&quot;, &quot;情シス部長&quot;],
+              ], font_size=11)
+    # 承認プロセス図 (縦)
+    flow_x = Inches(7.0); flow_w = Inches(5.8)
+    steps = [
+        (&quot;1. 起案&quot;, &quot;業務担当 → 業務オーナ&quot;),
+        (&quot;2. 部門承認&quot;, &quot;業務オーナ (要件決定者)&quot;),
+        (&quot;3. PM レビュー&quot;, &quot;影響 / スコープ / 工数確認&quot;),
+        (&quot;4. 変更管理委員会&quot;, &quot;影響 High は必須&quot;),
+        (&quot;5. SteerCo 承認&quot;, &quot;予算 / スケジュール影響あり&quot;),
+    ]
+    y = Inches(2.3); h = Inches(0.65); gap = Inches(0.15)
+    for i, (t, d) in enumerate(steps):
+        add_rect(slide, flow_x, y, flow_w, h,
+                 fill=COLOR_LIGHT, line=COLOR_ACCENT)
+        add_text(slide, flow_x + Inches(0.2), y + Inches(0.05),
+                 Inches(2), Inches(0.5), t, size=12, bold=True,
+                 color=COLOR_PRIMARY, anchor=MSO_ANCHOR.MIDDLE)
+        add_text(slide, flow_x + Inches(2.0), y + Inches(0.05),
+                 flow_w - Inches(2.1), Inches(0.5), d, size=11,
+                 color=COLOR_TEXT, anchor=MSO_ANCHOR.MIDDLE)
+        if i &lt; len(steps) - 1:
+            add_text(slide, flow_x + flow_w / 2 - Inches(0.2),
+                     y + h, Inches(0.4), gap, &quot;▼&quot;, size=10,
+                     color=COLOR_ACCENT, align=PP_ALIGN.CENTER)
+        y += h + gap
+
+
+# ======================================================================
+# 3. プロジェクト管理計画
+# ======================================================================
+@builder(&quot;3&quot;, &quot;プロジェクト管理計画&quot;, &quot;3.1 フェーズ管理&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;各フェーズの完了定義 (DoD) と次フェーズ着手条件 (Gate 条件) を明確化。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;フェーズ&quot;, &quot;目的&quot;, &quot;主要タスク&quot;, &quot;DoD (完了定義)&quot;, &quot;Gate 承認者&quot;],
+              rows=[
+                  [&quot;要件定義&quot;, &quot;業務・システム要件の確定&quot;,
+                   &quot;As-Is/To-Be / 業務整理 / NFR 合意&quot;,
+                   &quot;要件定義書 承認 / 未決課題 0&quot;,
+                   &quot;SteerCo&quot;],
+                  [&quot;基本設計&quot;, &quot;アーキテクチャ / IF の確定&quot;,
+                   &quot;方式 / 画面 / IF / DB 設計&quot;,
+                   &quot;基本設計書 承認 / NFR 試算 OK&quot;,
+                   &quot;PM + QA&quot;],
+                  [&quot;詳細設計&quot;, &quot;実装仕様の確定&quot;,
+                   &quot;モジュール / バッチ / IF 詳細&quot;,
+                   &quot;詳細設計レビュー 100% 完了&quot;,
+                   &quot;PM + アーキ&quot;],
+                  [&quot;開発&quot;, &quot;実装と単体品質の確保&quot;,
+                   &quot;コーディング / 単体テスト / レビュー&quot;,
+                   &quot;UT カバレッジ ≥ 80% / 欠陥残 0&quot;,
+                   &quot;PM&quot;],
+                  [&quot;テスト&quot;, &quot;結合~総合での品質確保&quot;,
+                   &quot;IT / ST / 性能 / セキュリティ&quot;,
+                   &quot;Sev1/2 欠陥 0 / SLA 達成&quot;,
+                   &quot;QA + PM&quot;],
+                  [&quot;移行 / 本番&quot;, &quot;安全なサービスイン&quot;,
+                   &quot;UAT / リハ / 切替&quot;,
+                   &quot;リリース判定通過 / BCP 確認&quot;,
+                   &quot;SteerCo&quot;],
+              ], font_size=10)
+
+
+@builder(&quot;3&quot;, &quot;プロジェクト管理計画&quot;, &quot;3.2 コミュニケーション管理&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;会議体と情報経路を固定化し、意思決定のリードタイムを短縮する。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;会議体&quot;, &quot;頻度&quot;, &quot;参加者&quot;, &quot;目的&quot;, &quot;主なアウトプット&quot;],
+              rows=[
+                  [&quot;ステアリングコミッティ&quot;, &quot;月1&quot;,
+                   &quot;役員 / CIO / PM&quot;,
+                   &quot;重要意思決定 / 予算 / リスク&quot;,
+                   &quot;議事録 / 承認事項&quot;],
+                  [&quot;PM 定例&quot;, &quot;週1&quot;,
+                   &quot;PM / PMO / 各リーダ&quot;,
+                   &quot;進捗 / 課題 / 変更&quot;,
+                   &quot;進捗表 / 課題一覧&quot;],
+                  [&quot;チーム定例&quot;, &quot;週2&quot;,
+                   &quot;チームメンバ&quot;,
+                   &quot;タスク進捗 / 障害&quot;,
+                   &quot;Daily Log&quot;],
+                  [&quot;要件レビュー&quot;, &quot;都度&quot;,
+                   &quot;業務オーナ / 業務 / 開発&quot;,
+                   &quot;要件仕様の確定&quot;,
+                   &quot;レビュー結果 / 承認&quot;],
+                  [&quot;障害対応会&quot;, &quot;発生時&quot;,
+                   &quot;PM / QA / 開発 / 運用&quot;,
+                   &quot;復旧 / 再発防止&quot;,
+                   &quot;障害報告書&quot;],
+                  [&quot;ユーザ説明会&quot;, &quot;フェーズ毎&quot;,
+                   &quot;現場ユーザ&quot;,
+                   &quot;理解促進 / 受入準備&quot;,
+                   &quot;説明資料 / Q&amp;A&quot;],
+              ], font_size=10)
+
+
+@builder(&quot;3&quot;, &quot;プロジェクト管理計画&quot;, &quot;3.3 進捗管理&quot;)
+def _(slide):
+    col_w = Inches(6.1); y = Inches(1.9); h = Inches(5.0)
+    add_box(slide, Inches(0.5), y, col_w, h, &quot;測定と可視化&quot;, [
+        (&quot;WBS 粒度&quot;, &quot;最小タスク ≤ 5 人日 / ≤ 10 営業日&quot;),
+        (&quot;指標&quot;, &quot;EVM (PV/EV/AC), SPI, CPI を週次で算出&quot;),
+        (&quot;見える化&quot;, &quot;Jira + 週次バーンダウン / ガントチャート&quot;),
+        (&quot;早期検知&quot;, &quot;SPI &lt; 0.9 で黄信号、&lt; 0.8 で赤信号&quot;),
+        (&quot;成果物&quot;, &quot;週次進捗報告 / 月次 SteerCo 報告&quot;),
+    ])
+    add_box(slide, Inches(6.7), y, col_w, h, &quot;遅延時のアクション&quot;,
+            [
+                (&quot;黄信号&quot;, &quot;チームリーダーが原因分析・PM 報告&quot;),
+                (&quot;赤信号&quot;, &quot;リカバリプラン策定 (1週間以内)&quot;),
+                (&quot;手段&quot;, &quot;タスク再配分 / 要員増員 / スコープ調整&quot;),
+                (&quot;エスカレ&quot;, &quot;2 週間で回復不能 → SteerCo 付議&quot;),
+                (&quot;記録&quot;, &quot;RCA (根本原因分析) を必ず文書化&quot;),
+            ], title_color=COLOR_ACCENT)
+
+
+@builder(&quot;3&quot;, &quot;プロジェクト管理計画&quot;, &quot;3.4 課題 / リスク管理&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;課題 (Issue) と リスク (Risk) を分離管理。優先度でリソースを配分。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(2.4),
+              headers=[&quot;区分&quot;, &quot;定義&quot;, &quot;管理ツール&quot;, &quot;更新頻度&quot;, &quot;レビュー&quot;],
+              rows=[
+                  [&quot;Issue (課題)&quot;, &quot;既に発生している事象&quot;,
+                   &quot;Jira (Issue project)&quot;, &quot;日次&quot;, &quot;PM 定例&quot;],
+                  [&quot;Risk (リスク)&quot;, &quot;将来発生しうる事象&quot;,
+                   &quot;Risk Register (Confluence)&quot;, &quot;週次&quot;, &quot;PM 定例 + SteerCo&quot;],
+              ], font_size=11)
+    # 優先度マトリクス
+    y2 = Inches(4.9)
+    add_text(slide, Inches(0.5), y2, Inches(12), Inches(0.4),
+             &quot;優先度マトリクス (影響 × 緊急度)&quot;, size=14, bold=True,
+             color=COLOR_PRIMARY)
+    add_table(slide, Inches(0.5), y2 + Inches(0.5), Inches(12.3), Inches(1.6),
+              headers=[&quot;&quot;, &quot;緊急度 低&quot;, &quot;緊急度 中&quot;, &quot;緊急度 高&quot;],
+              rows=[
+                  [&quot;影響 高&quot;, &quot;P2 / 計画対応&quot;, &quot;P1 / 即対応&quot;, &quot;P0 / 緊急対応&quot;],
+                  [&quot;影響 中&quot;, &quot;P3 / 監視&quot;,    &quot;P2 / 計画対応&quot;, &quot;P1 / 即対応&quot;],
+                  [&quot;影響 低&quot;, &quot;P4 / 受容&quot;,    &quot;P3 / 監視&quot;,    &quot;P2 / 計画対応&quot;],
+              ], font_size=11)
+
+
+@builder(&quot;3&quot;, &quot;プロジェクト管理計画&quot;, &quot;3.5 変更管理&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;スコープ / スケジュール / 予算 / 品質に影響する変更は CCB で審議。&quot;,
+             size=12, color=COLOR_GRAY)
+    # プロセス
+    steps = [&quot;変更要求 (CR)&quot;, &quot;影響分析&quot;, &quot;CCB 審議&quot;, &quot;承認/却下&quot;, &quot;計画反映&quot;, &quot;実行/検証&quot;]
+    x = Inches(0.5); y = Inches(2.4); w = Inches(2.0); h = Inches(0.8)
+    gap_x = Inches(0.12)
+    for i, s in enumerate(steps):
+        xi = x + (w + gap_x) * i
+        add_rect(slide, xi, y, w, h,
+                 fill=COLOR_ACCENT if i % 2 == 0 else COLOR_PRIMARY)
+        add_text(slide, xi, y, w, h, s, size=11, bold=True,
+                 color=COLOR_WHITE, align=PP_ALIGN.CENTER,
+                 anchor=MSO_ANCHOR.MIDDLE)
+    # 判定基準
+    add_text(slide, Inches(0.5), Inches(3.6), Inches(12), Inches(0.4),
+             &quot;判定基準 (目安)&quot;, size=14, bold=True, color=COLOR_PRIMARY)
+    add_table(slide, Inches(0.5), Inches(4.1), Inches(12.3), Inches(2.4),
+              headers=[&quot;区分&quot;, &quot;影響&quot;, &quot;承認者&quot;, &quot;SLA&quot;],
+              rows=[
+                  [&quot;軽微 (Minor)&quot;, &quot;工数 ≤ 5 人日 / スケジュール影響なし&quot;,
+                   &quot;PM&quot;, &quot;3 営業日以内&quot;],
+                  [&quot;中 (Major)&quot;, &quot;工数 5〜20 人日 / 一部機能影響&quot;,
+                   &quot;PM + 業務オーナ&quot;, &quot;5 営業日以内&quot;],
+                  [&quot;重大 (Critical)&quot;, &quot;工数 &gt; 20 人日 / スコープ・予算影響&quot;,
+                   &quot;CCB + SteerCo&quot;, &quot;10 営業日以内&quot;],
+              ], font_size=11)
+
+
+@builder(&quot;3&quot;, &quot;プロジェクト管理計画&quot;, &quot;3.6 情報管理&quot;)
+def _(slide):
+    col_w = Inches(6.1); y = Inches(1.9); h = Inches(5.0)
+    add_box(slide, Inches(0.5), y, col_w, h, &quot;情報資産の分類と格納先&quot;, [
+        (&quot;ドキュメント&quot;, &quot;Confluence (WBS / 議事 / 設計書)&quot;),
+        (&quot;ソース&quot;,       &quot;GitHub Enterprise (Private)&quot;),
+        (&quot;チケット&quot;,     &quot;Jira (要件 / 課題 / 変更)&quot;),
+        (&quot;成果物バイナリ&quot;, &quot;Artifact Repo (Nexus)&quot;),
+        (&quot;機密資料&quot;,     &quot;暗号化共有ストレージ / IRM 必須&quot;),
+        (&quot;チャット&quot;,     &quot;Slack (ログ保管 180 日)&quot;),
+    ])
+    add_box(slide, Inches(6.7), y, col_w, h, &quot;アクセス制御と監査&quot;,
+            [
+                (&quot;権限モデル&quot;, &quot;ロールベース (RBAC) / 最小権限&quot;),
+                (&quot;機密区分&quot;,   &quot;Public / Internal / Confidential / Secret&quot;),
+                (&quot;持出制御&quot;,   &quot;Secret 相当は端末持出禁止 (DLP 監視)&quot;),
+                (&quot;ログ&quot;,       &quot;アクセス / 変更ログを1年保管&quot;),
+                (&quot;監査&quot;,       &quot;四半期ごとに PMO がサンプル監査&quot;),
+                (&quot;廃棄&quot;,       &quot;プロジェクト終了後1年で削除 (法令除く)&quot;),
+            ], title_color=COLOR_ACCENT)
+
+
+# ======================================================================
+# 4. 品質管理計画
+# ======================================================================
+@builder(&quot;4&quot;, &quot;品質管理計画&quot;, &quot;4.1 品質管理方針&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;「作り込みで品質を上げる」を基本方針とし、後工程での手戻りを抑制する。&quot;,
+             size=12, color=COLOR_GRAY)
+    items = [
+        (&quot;方針1&quot;, &quot;品質は工程ごとに作り込む (Shift-Left)&quot;),
+        (&quot;方針2&quot;, &quot;欠陥は発見工程ではなく混入工程で是正する&quot;),
+        (&quot;方針3&quot;, &quot;定量 (メトリクス) と定性 (レビュー) の両輪で評価する&quot;),
+        (&quot;方針4&quot;, &quot;自動化可能な検証は CI に組み込み、人は設計レビューに集中&quot;),
+        (&quot;方針5&quot;, &quot;顧客品質 (利用者価値) と内部品質 (保守性) を共に重視&quot;),
+    ]
+    add_bullets(slide, Inches(0.8), Inches(2.4), Inches(11.8), Inches(3),
+                items, size=14, line_spacing=1.5)
+    # ISO9126 / 25010 観点
+    add_text(slide, Inches(0.5), Inches(5.2), Inches(12), Inches(0.4),
+             &quot;評価観点 (ISO/IEC 25010 ベース)&quot;, size=14, bold=True,
+             color=COLOR_PRIMARY)
+    cats = [&quot;機能適合性&quot;, &quot;性能効率&quot;, &quot;互換性&quot;, &quot;使用性&quot;, &quot;信頼性&quot;, &quot;セキュリティ&quot;, &quot;保守性&quot;, &quot;移植性&quot;]
+    x = Inches(0.5); y = Inches(5.7); w = Inches(1.55); h = Inches(0.7)
+    for i, c in enumerate(cats):
+        add_rect(slide, x + (w + Inches(0.05)) * i, y, w, h,
+                 fill=COLOR_LIGHT, line=COLOR_ACCENT)
+        add_text(slide, x + (w + Inches(0.05)) * i, y, w, h, c,
+                 size=11, bold=True, color=COLOR_PRIMARY,
+                 align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+
+
+@builder(&quot;4&quot;, &quot;品質管理計画&quot;, &quot;4.2 品質管理体制&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;QA は開発から独立したレポートラインで品質を担保する。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;ロール&quot;, &quot;所属&quot;, &quot;主責任&quot;, &quot;レポート先&quot;],
+              rows=[
+                  [&quot;品質統括&quot;, &quot;QA 部&quot;,
+                   &quot;品質方針策定 / 品質判定&quot;,
+                   &quot;PM / SteerCo&quot;],
+                  [&quot;品質管理リーダ&quot;, &quot;プロジェクト&quot;,
+                   &quot;メトリクス収集 / 分析 / 是正指示&quot;,
+                   &quot;品質統括&quot;],
+                  [&quot;設計レビュア&quot;, &quot;アーキ/有識者&quot;,
+                   &quot;設計レビュー / NFR 確認&quot;,
+                   &quot;品質管理リーダ&quot;],
+                  [&quot;テストリーダ&quot;, &quot;QA&quot;,
+                   &quot;テスト計画 / 実行統制&quot;,
+                   &quot;品質管理リーダ&quot;],
+                  [&quot;独立検証 (IV&amp;V)&quot;, &quot;外部&quot;,
+                   &quot;重要機能・NFR の第三者検証&quot;,
+                   &quot;SteerCo&quot;],
+              ], font_size=11)
+
+
+@builder(&quot;4&quot;, &quot;品質管理計画&quot;, &quot;4.3 品質管理プロセス&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;Plan → Do → Check → Act を各フェーズで反復し、品質ゲートで収束させる。&quot;,
+             size=12, color=COLOR_GRAY)
+    # PDCA 帯
+    steps = [(&quot;Plan&quot;, &quot;品質目標 / 指標設定&quot;),
+             (&quot;Do&quot;,   &quot;レビュー・テスト実施&quot;),
+             (&quot;Check&quot;,&quot;メトリクス分析&quot;),
+             (&quot;Act&quot;,  &quot;是正・予防・再発防止&quot;)]
+    x = Inches(0.5); y = Inches(2.4); w = Inches(3.05); h = Inches(1.1)
+    colors = [COLOR_PRIMARY, COLOR_ACCENT, COLOR_PRIMARY, COLOR_ACCENT]
+    for i, (h1, h2) in enumerate(steps):
+        xi = x + (w + Inches(0.05)) * i
+        add_rect(slide, xi, y, w, h, fill=colors[i])
+        add_text(slide, xi, y + Inches(0.1), w, Inches(0.4), h1,
+                 size=16, bold=True, color=COLOR_WHITE,
+                 align=PP_ALIGN.CENTER)
+        add_text(slide, xi, y + Inches(0.55), w, Inches(0.5), h2,
+                 size=11, color=COLOR_LIGHT, align=PP_ALIGN.CENTER)
+    # ゲート基準
+    add_text(slide, Inches(0.5), Inches(3.8), Inches(12), Inches(0.4),
+             &quot;品質ゲート基準 (例)&quot;, size=14, bold=True, color=COLOR_PRIMARY)
+    add_table(slide, Inches(0.5), Inches(4.3), Inches(12.3), Inches(2.3),
+              headers=[&quot;工程&quot;, &quot;レビュー指摘密度&quot;, &quot;テスト密度&quot;, &quot;欠陥密度&quot;, &quot;残欠陥&quot;],
+              rows=[
+                  [&quot;設計&quot;,   &quot;≥ 0.5 件/頁&quot;,  &quot;-&quot;,              &quot;-&quot;,          &quot;Sev1/2 : 0&quot;],
+                  [&quot;UT&quot;,     &quot;-&quot;,           &quot;≥ 1.0 ケース/KLOC&quot;, &quot;≤ 0.5 件/KLOC&quot;, &quot;Sev1/2 : 0&quot;],
+                  [&quot;IT&quot;,     &quot;-&quot;,           &quot;計画比 100%&quot;,      &quot;≤ 0.3 件/KLOC&quot;, &quot;Sev1 : 0&quot;],
+                  [&quot;ST/UAT&quot;, &quot;-&quot;,           &quot;計画比 100%&quot;,      &quot;収束曲線上昇停止&quot;, &quot;Sev1 : 0&quot;],
+              ], font_size=11)
+
+
+@builder(&quot;4&quot;, &quot;品質管理計画&quot;, &quot;4.4 システム品質管理詳細&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;非機能要件 (NFR) を観点ごとに定量目標として管理する。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;観点&quot;, &quot;指標&quot;, &quot;目標値&quot;, &quot;検証方法&quot;],
+              rows=[
+                  [&quot;性能&quot;,     &quot;応答時間 (95%tile)&quot;, &quot;≤ 2.0 秒 (主要画面)&quot;, &quot;負荷試験 (JMeter)&quot;],
+                  [&quot;スループット&quot;, &quot;トランザクション/秒&quot;, &quot;≥ 200 TPS (ピーク時)&quot;, &quot;負荷試験&quot;],
+                  [&quot;可用性&quot;,   &quot;月間稼働率&quot;,       &quot;≥ 99.9% (8時-22時)&quot;, &quot;監視 / 月次レポート&quot;],
+                  [&quot;信頼性&quot;,   &quot;Sev1 障害&quot;,       &quot;年間 ≤ 2 件&quot;,         &quot;障害記録&quot;],
+                  [&quot;セキュリティ&quot;, &quot;脆弱性&quot;,      &quot;Critical/High : 0&quot;,   &quot;SAST / DAST / 侵入試験&quot;],
+                  [&quot;保守性&quot;,   &quot;Cyclomatic 複雑度&quot;, &quot;≤ 15 / 関数&quot;,        &quot;SonarQube&quot;],
+                  [&quot;使用性&quot;,   &quot;UAT 満足度&quot;,      &quot;≥ 4.0 / 5.0&quot;,         &quot;アンケート&quot;],
+                  [&quot;移行性&quot;,   &quot;データ不整合率&quot;,  &quot;≤ 0.01%&quot;,              &quot;移行リハ結果&quot;],
+              ], font_size=11)
+
+
+# ======================================================================
+# 5. 移行計画
+# ======================================================================
+@builder(&quot;5&quot;, &quot;移行計画&quot;, &quot;5.1 リリース定義&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;段階リリースを採用。業務影響の小さい領域から順次展開する。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;Release&quot;, &quot;時期&quot;, &quot;対象範囲&quot;, &quot;方式&quot;, &quot;並行運用&quot;],
+              rows=[
+                  [&quot;R0 (Pilot)&quot;, &quot;2027-02&quot;,
+                   &quot;社内部門 (経理) のみ&quot;,
+                   &quot;限定ユーザ&quot;, &quot;2 週間&quot;],
+                  [&quot;R1 (Major)&quot;, &quot;2027-03&quot;,
+                   &quot;販売 / 購買 / 在庫 / 会計&quot;,
+                   &quot;一斉切替 (Big Bang)&quot;, &quot;1 ヶ月&quot;],
+                  [&quot;R2&quot;,         &quot;2027-06&quot;,
+                   &quot;人事 / 給与&quot;,
+                   &quot;月次切替&quot;, &quot;-&quot;],
+                  [&quot;R3 (BI)&quot;,    &quot;2027-09&quot;,
+                   &quot;BI / ダッシュボード拡張&quot;,
+                   &quot;段階展開&quot;, &quot;-&quot;],
+                  [&quot;R4 (海外)&quot;,  &quot;2027 下期〜 (Phase2)&quot;,
+                   &quot;海外拠点&quot;,
+                   &quot;別プロジェクト&quot;, &quot;-&quot;],
+              ], font_size=11)
+
+
+@builder(&quot;5&quot;, &quot;移行計画&quot;, &quot;5.2 リリース判定方針&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;定量・定性の両軸で Go / No-Go を判定する。1 項目でも NG なら原則 No-Go。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.0),
+              headers=[&quot;判定項目&quot;, &quot;基準&quot;, &quot;判定者&quot;],
+              rows=[
+                  [&quot;品質&quot;,       &quot;Sev1/2 欠陥 0、ST/UAT 完了率 100%&quot;, &quot;QA&quot;],
+                  [&quot;性能&quot;,       &quot;NFR の性能目標を全て達成&quot;,         &quot;アーキ + QA&quot;],
+                  [&quot;移行&quot;,       &quot;リハ 2 回連続成功、RTO/RPO 達成&quot;,    &quot;移行リーダ&quot;],
+                  [&quot;運用&quot;,       &quot;手順書整備、運用リハ完了、要員訓練済&quot;, &quot;運用責任者&quot;],
+                  [&quot;業務&quot;,       &quot;UAT 承認、教育完了、業務部門 Go&quot;,     &quot;業務オーナ&quot;],
+                  [&quot;BCP&quot;,        &quot;切戻し手順の実機確認完了&quot;,           &quot;PM + 運用&quot;],
+              ], font_size=11)
+    add_text(slide, Inches(0.5), Inches(6.5), Inches(12), Inches(0.4),
+             &quot;最終判定会議: リリース予定日の 7 営業日前に SteerCo で実施。&quot;,
+             size=11, bold=True, color=COLOR_ACCENT)
+
+
+@builder(&quot;5&quot;, &quot;移行計画&quot;, &quot;5.3 システム保守計画&quot;)
+def _(slide):
+    col_w = Inches(6.1); y = Inches(1.9); h = Inches(5.0)
+    add_box(slide, Inches(0.5), y, col_w, h, &quot;保守体制 (ハイパーケア → 定常)&quot;, [
+        (&quot;ハイパーケア&quot;, &quot;本稼働後 6 ヶ月。PJ メンバ常駐・即応&quot;),
+        (&quot;定常運用&quot;,     &quot;7 ヶ月目以降。運用保守チームへ移管&quot;),
+        (&quot;体制&quot;,         &quot;1次: ヘルプデスク / 2次: 運用 / 3次: 開発&quot;),
+        (&quot;稼働時間&quot;,     &quot;平日 8:00-22:00、夜間・休日はオンコール&quot;),
+        (&quot;SLA&quot;,          &quot;受付 &lt; 15分 / 初動 &lt; 1h / 復旧 &lt; 4h (Sev1)&quot;),
+    ])
+    add_box(slide, Inches(6.7), y, col_w, h, &quot;保守区分と対応範囲&quot;,
+            [
+                (&quot;是正保守&quot;, &quot;障害対応 (SLA に基づく復旧)&quot;),
+                (&quot;予防保守&quot;, &quot;パッチ適用 / 脆弱性対応 / 監視改善&quot;),
+                (&quot;適応保守&quot;, &quot;OS・ミドルアップデート対応&quot;),
+                (&quot;完全化保守&quot;, &quot;小規模改善 (四半期ごとリリース)&quot;),
+                (&quot;機能追加&quot;, &quot;別契約 / 別プロジェクトで対応&quot;),
+                (&quot;契約&quot;,    &quot;年次更新 / SLA 未達はクレジット発行&quot;),
+            ], title_color=COLOR_ACCENT)
+
+
+@builder(&quot;5&quot;, &quot;移行計画&quot;, &quot;5.4 業務運用計画&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;業務部門が自律運用に移れる状態を移行完了の定義とする。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;領域&quot;, &quot;内容&quot;, &quot;成果物&quot;, &quot;責任部門&quot;],
+              rows=[
+                  [&quot;業務手順&quot;, &quot;新業務フロー整備・手順書化&quot;,
+                   &quot;業務マニュアル (版管理)&quot;, &quot;業務部門&quot;],
+                  [&quot;教育&quot;,     &quot;役割別トレーニング / e-Learning&quot;,
+                   &quot;教育計画 / 受講記録&quot;,     &quot;人事 + 業務&quot;],
+                  [&quot;ヘルプデスク&quot;, &quot;問合せ窓口・FAQ 整備&quot;,
+                   &quot;FAQ / ナレッジ DB&quot;,       &quot;情シス&quot;],
+                  [&quot;KPI モニタ&quot;, &quot;KGI/KPI の測定と経営報告&quot;,
+                   &quot;月次ダッシュボード&quot;,      &quot;経営企画&quot;],
+                  [&quot;継続改善&quot;,   &quot;現場フィードバックの収集・改善&quot;,
+                   &quot;改善要望一覧&quot;,            &quot;PMO → 運用&quot;],
+                  [&quot;BCP&quot;,        &quot;災害 / 障害時の業務継続手順&quot;,
+                   &quot;BCP マニュアル&quot;,          &quot;リスク管理&quot;],
+              ], font_size=11)
+
+
+# ======================================================================
+# 6. AI活用計画 (Kiro)
+# ======================================================================
+@builder(&quot;6&quot;, &quot;AI活用計画&quot;, &quot;6.1 AI活用方針&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;生成AIを単なるコーディング補助ではなく、仕様駆動開発の中核に据える。&quot;,
+             size=12, color=COLOR_GRAY)
+    items = [
+        (&quot;方針1&quot;, &quot;Spec-Driven Development — 要件・設計・タスクを AI と共同で形式化し、実装の前段を厚くする&quot;),
+        (&quot;方針2&quot;, &quot;Human-in-the-Loop — 仕様・設計・マージは必ず人が承認。AI の自律実行は定義済み範囲のみ&quot;),
+        (&quot;方針3&quot;, &quot;再現性 — プロンプト / spec / hooks / steering をリポジトリで版管理し、属人性を排除&quot;),
+        (&quot;方針4&quot;, &quot;セキュリティ優先 — 機密データは社外 API に出さない。MCP 経由で社内リソース接続&quot;),
+        (&quot;方針5&quot;, &quot;効果測定 — 生産性・品質・リードタイムを定量計測し、PDCA を回す&quot;),
+    ]
+    add_bullets(slide, Inches(0.8), Inches(2.4), Inches(11.8), Inches(3.3),
+                items, size=13, line_spacing=1.45)
+    # 適用領域
+    add_text(slide, Inches(0.5), Inches(5.8), Inches(12), Inches(0.4),
+             &quot;適用領域&quot;, size=14, bold=True, color=COLOR_PRIMARY)
+    cats = [&quot;要件定義&quot;, &quot;設計&quot;, &quot;実装&quot;, &quot;テスト&quot;, &quot;レビュー&quot;, &quot;ドキュメント&quot;, &quot;運用/保守&quot;]
+    x = Inches(0.5); y = Inches(6.25); w = Inches(1.77); h = Inches(0.6)
+    for i, c in enumerate(cats):
+        add_rect(slide, x + (w + Inches(0.05)) * i, y, w, h,
+                 fill=COLOR_LIGHT, line=COLOR_ACCENT)
+        add_text(slide, x + (w + Inches(0.05)) * i, y, w, h, c,
+                 size=11, bold=True, color=COLOR_PRIMARY,
+                 align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+
+
+@builder(&quot;6&quot;, &quot;AI活用計画&quot;, &quot;6.2 Kiro の活用 (Specs / Hooks / Steering / MCP)&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;Kiro (Agentic IDE) の 4 つのコア機能を本プロジェクトに組み込む。&quot;,
+             size=12, color=COLOR_GRAY)
+    # 2x2 grid
+    x0 = Inches(0.5); y0 = Inches(2.3)
+    w = Inches(6.15); h = Inches(2.25); gx = Inches(0.2); gy = Inches(0.2)
+    # Specs
+    add_box(slide, x0, y0, w, h,
+            &quot;① Specs (仕様駆動)&quot;,
+            [
+                (&quot;requirements.md&quot;, &quot;EARS 記法で受入条件を列挙&quot;),
+                (&quot;design.md&quot;,       &quot;アーキ / IF / データモデル / 意思決定&quot;),
+                (&quot;tasks.md&quot;,        &quot;実装タスクへの分解 (トレーサビリティ確保)&quot;),
+                (&quot;成果&quot;,            &quot;要件 → 実装の追跡可能性を担保&quot;),
+            ], title_color=COLOR_PRIMARY)
+    # Hooks
+    add_box(slide, x0 + w + gx, y0, w, h,
+            &quot;② Agent Hooks (自動化)&quot;,
+            [
+                (&quot;on save&quot;,         &quot;該当テストの自動実行 / Lint / 型検査&quot;),
+                (&quot;on commit&quot;,       &quot;コミットメッセージ整形 / 変更要約生成&quot;),
+                (&quot;on spec update&quot;,  &quot;影響範囲のタスク再生成&quot;),
+                (&quot;成果&quot;,            &quot;反復作業を AI が肩代わり&quot;),
+            ], title_color=COLOR_ACCENT)
+    # Steering
+    add_box(slide, x0, y0 + h + gy, w, h,
+            &quot;③ Steering (文脈制御)&quot;,
+            [
+                (&quot;product.md&quot;,      &quot;プロダクト方針 / ペルソナ / KPI&quot;),
+                (&quot;tech.md&quot;,         &quot;技術スタック / コーディング規約&quot;),
+                (&quot;structure.md&quot;,    &quot;リポジトリ構造 / 命名規則&quot;),
+                (&quot;成果&quot;,            &quot;AI 出力の一貫性と品質を底上げ&quot;),
+            ], title_color=COLOR_PRIMARY)
+    # MCP
+    add_box(slide, x0 + w + gx, y0 + h + gy, w, h,
+            &quot;④ MCP (社内連携)&quot;,
+            [
+                (&quot;社内DB / Wiki&quot;,   &quot;読み取り専用で Kiro から参照&quot;),
+                (&quot;Jira / GitHub&quot;,   &quot;チケット起票・PR 操作を AI から&quot;),
+                (&quot;監視 / ログ&quot;,     &quot;障害分析時のエビデンス取得&quot;),
+                (&quot;成果&quot;,            &quot;機密を外に出さず社内情報で推論&quot;),
+            ], title_color=COLOR_ACCENT)
+
+
+@builder(&quot;6&quot;, &quot;AI活用計画&quot;, &quot;6.3 開発プロセスへの統合&quot;)
+def _(slide):
+    add_text(slide, Inches(0.5), Inches(1.8), Inches(12), Inches(0.4),
+             &quot;各フェーズでの AI 活用ポイントと、人が担う責任領域を明示する。&quot;,
+             size=12, color=COLOR_GRAY)
+    add_table(slide, Inches(0.5), Inches(2.3), Inches(12.3), Inches(4.5),
+              headers=[&quot;フェーズ&quot;, &quot;AI が担う作業 (Kiro)&quot;, &quot;人が担う責任&quot;,
+                       &quot;指標&quot;],
+              rows=[
+                  [&quot;要件定義&quot;,
+                   &quot;spec 雛形生成 / 矛盾検出 / 用語統一&quot;,
+                   &quot;業務要件の妥当性判断 / 承認&quot;,
+                   &quot;要件レビュー時間 -30%&quot;],
+                  [&quot;基本設計&quot;,
+                   &quot;代替案提示 / IF 差分検出 / NFR チェック&quot;,
+                   &quot;アーキ決定 / ADR 承認&quot;,
+                   &quot;設計指摘 再発率 -20%&quot;],
+                  [&quot;詳細設計/実装&quot;,
+                   &quot;コード生成 / リファクタ / テスト雛形&quot;,
+                   &quot;設計意図の判断 / レビュー / マージ&quot;,
+                   &quot;開発生産性 +30%&quot;],
+                  [&quot;テスト&quot;,
+                   &quot;テストケース補完 / データ生成 / 実行&quot;,
+                   &quot;受入観点・業務妥当性の確認&quot;,
+                   &quot;UT カバレッジ ≥ 80%&quot;],
+                  [&quot;レビュー&quot;,
+                   &quot;静的解析 / 規約違反検出 / 差分要約&quot;,
+                   &quot;設計意図・ビジネス妥当性の判断&quot;,
+                   &quot;レビュー待ち時間 -40%&quot;],
+                  [&quot;ドキュメント&quot;,
+                   &quot;API 仕様 / 運用手順の自動生成と更新&quot;,
+                   &quot;最終校正・顧客向け表現の調整&quot;,
+                   &quot;ドキュ更新遅延 0 日&quot;],
+                  [&quot;運用/保守&quot;,
+                   &quot;障害一次切り分け / 再発防止案提示&quot;,
+                   &quot;復旧判断 / 顧客コミュニケーション&quot;,
+                   &quot;MTTR -25%&quot;],
+              ], font_size=10)
+
+
+@builder(&quot;6&quot;, &quot;AI活用計画&quot;, &quot;6.4 AIガバナンス (セキュリティ・品質・責任)&quot;)
+def _(slide):
+    col_w = Inches(6.1); y = Inches(1.9); h = Inches(5.0)
+    add_box(slide, Inches(0.5), y, col_w, h,
+            &quot;セキュリティ / プライバシー&quot;,
+            [
+                (&quot;データ境界&quot;, &quot;顧客データ・個人情報は AI に投入禁止 (DLP 監視)&quot;),
+                (&quot;モデル&quot;,    &quot;社内承認モデル限定 / ログは国内リージョン保管&quot;),
+                (&quot;秘密情報&quot;, &quot;API Key / 認証情報のプロンプト投入を自動検出&quot;),
+                (&quot;MCP&quot;,      &quot;最小権限・読み取り優先 / 書込は承認フロー経由&quot;),
+                (&quot;ログ監査&quot;, &quot;プロンプト / 生成物 / 参照コンテキストを1年保管&quot;),
+            ])
+    add_box(slide, Inches(6.7), y, col_w, h,
+            &quot;品質 / 責任 / 運用&quot;,
+            [
+                (&quot;責任原則&quot;, &quot;AI 生成物の最終責任は常に人 (レビュア)&quot;),
+                (&quot;検証&quot;,    &quot;生成コードは CI (Lint/型/テスト/SAST) 必須通過&quot;),
+                (&quot;著作権&quot;,  &quot;ライセンス互換性チェック / 類似コード検出&quot;),
+                (&quot;幻覚対策&quot;, &quot;根拠 (Spec/コード/ドキュ) 提示を徹底&quot;),
+                (&quot;効果測定&quot;, &quot;月次で生産性・欠陥密度・レビュー時間を報告&quot;),
+                (&quot;教育&quot;,    &quot;プロンプト設計・Spec 記法の研修を全員必修&quot;),
+            ], title_color=COLOR_ACCENT)
+
+
+# ======================================================================
+# 最終ページ
+# ======================================================================
+def build_end(slide):
+    add_rect(slide, 0, 0, SLIDE_W, SLIDE_H, fill=COLOR_PRIMARY)
+    add_text(slide, 0, Inches(3.0), SLIDE_W, Inches(1.2),
+             &quot;Thank You&quot;, size=60, bold=True, color=COLOR_WHITE,
+             align=PP_ALIGN.CENTER)
+    add_text(slide, 0, Inches(4.2), SLIDE_W, Inches(0.6),
+             &quot;ご質問・ご意見はプロジェクト窓口まで&quot;, size=16,
+             color=COLOR_LIGHT, align=PP_ALIGN.CENTER)
+
+
+# ---- ビルド ----------------------------------------------------------
+# 全スライド数 = 表紙 + 目次 + (章扉 + 各サブページ)×5章 + Thanks
+section_map = {}
+for sec_no, sec_title, _, _ in PAGES:
+    section_map.setdefault(sec_no, sec_title)
+
+total_slides = 2  # cover + toc
+for sec_no in section_map:
+    total_slides += 1  # divider
+    total_slides += sum(1 for p in PAGES if p[0] == sec_no)
+total_slides += 1  # thanks
+
+# 表紙
+s = prs.slides.add_slide(BLANK)
+build_cover(s)
+
+# 目次
+s = prs.slides.add_slide(BLANK)
+build_toc(s)
+
+# ページ順に: 章扉 → 各サブページ
+page_no = 2  # 表紙=1, 目次=2
+section_subtitles = {
+    &quot;1&quot;: &quot;Project Definition&quot;,
+    &quot;2&quot;: &quot;Project Organization&quot;,
+    &quot;3&quot;: &quot;Project Management Plan&quot;,
+    &quot;4&quot;: &quot;Quality Management Plan&quot;,
+    &quot;5&quot;: &quot;Migration Plan&quot;,
+    &quot;6&quot;: &quot;AI Utilization Plan — powered by Kiro&quot;,
+}
+current_section = None
+for sec_no, sec_title, page_title, fn in PAGES:
+    if sec_no != current_section:
+        # 章扉
+        s = prs.slides.add_slide(BLANK)
+        section_divider(sec_no, sec_title,
+                        section_subtitles.get(sec_no, &quot;&quot;))(s)
+        page_no += 1
+        current_section = sec_no
+    s = prs.slides.add_slide(BLANK)
+    add_page_header(s, sec_no, sec_title, page_title)
+    fn(s)
+    page_no += 1
+    add_footer(s, page_no, total_slides)
+
+# Thanks
+s = prs.slides.add_slide(BLANK)
+build_end(s)
+
+# ============================================================================
+#   出力処理
+# ============================================================================
+# OUTPUT_FILE が相対パスならスクリプトと同じフォルダに出力。
+# 絶対パスならそのまま使用。
+def _resolve_output_path(filename: str) -&gt; Path:
+    &quot;&quot;&quot;出力パスを解決する。
+
+    - 絶対パス指定: そのまま使用
+    - 相対パス指定: このスクリプトと同じフォルダ直下に作成
+      (対話実行 / Jupyter などで __file__ が無い場合は cwd にフォールバック)
+    &quot;&quot;&quot;
+    p = Path(filename).expanduser()
+    if p.is_absolute():
+        return p
+    try:
+        base = Path(__file__).resolve().parent
+    except NameError:
+        base = Path.cwd()
+    return base / p
+
+
+output_path = _resolve_output_path(OUTPUT_FILE)
+output_path.parent.mkdir(parents=True, exist_ok=True)
+prs.save(str(output_path))
+
+print(&quot;=&quot; * 60)
+print(f&quot;  OK: プロジェクト計画書を生成しました&quot;)
+print(f&quot;  path : {output_path}&quot;)
+print(f&quot;  slides: {len(prs.slides)} pages&quot;)
+print(&quot;=&quot; * 60)
+print(&quot;  PowerPoint / Keynote / LibreOffice Impress で開けます。&quot;)
+</code></pre>
+
+<script>
+  document.getElementById('copyBtn').addEventListener('click', async () => {
+    const text = document.getElementById('code').textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+      document.getElementById('copyStatus').textContent = '✅ コピーしました';
+    } catch (e) {
+      // fallback: select text
+      const range = document.createRange();
+      range.selectNodeContents(document.getElementById('code'));
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+      document.getElementById('copyStatus').textContent = '⚠️ 範囲選択済み。Ctrl+C で手動コピーしてください';
+    }
+  });
+</script>
+</body>
+</html>
